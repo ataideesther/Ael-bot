@@ -1,0 +1,95 @@
+{% extends 'math_bot/base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <!-- Cabeçalho -->
+        <div class="text-center mb-4">
+            <h1 class="display-4">🤖 Professor AEL</h1>
+            <p class="lead">Seu professor de matemática sarcástico e provocador</p>
+        </div>
+
+        <!-- Área de Chat -->
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">💬 Conversa com o Professor</h4>
+            </div>
+            <div class="card-body p-0">
+                <!-- Mensagens -->
+                <div id="chat-messages" style="height: 400px; overflow-y: auto; padding: 20px;">
+                    <!-- Mensagem inicial -->
+                    <div class="message bot-message mb-3">
+                        <div class="d-flex align-items-start">
+                            <div class="avatar me-3">🤖</div>
+                            <div class="message-content">
+                                <div class="alert alert-info">
+                                    <strong>Professor:</strong> Olá! Sou seu professor de matemática sarcástico. 
+                                    Vamos começar? Diga-me o que quer aprender!
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulário de entrada -->
+                <div class="card-footer">
+                    <form id="chat-form">
+                        {% csrf_token %}
+                        <input type="hidden" id="sessionId">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="user-input" 
+                                   placeholder="Digite sua pergunta ou resposta..." 
+                                   autocomplete="off">
+                            <button type="submit" class="btn btn-primary" id="submit-btn">
+                                <span class="spinner-border spinner-border-sm d-none" id="loading-spinner"></span>
+                                Enviar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Formulário de Início (modal) -->
+        <div class="modal fade" id="inicioModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">👋 Bem-vindo ao Professor AEL!</h5>
+                    </div>
+                    <div class="modal-body">
+                        <form id="inicio-form">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label class="form-label">📚 O que você gostaria de aprender hoje?</label>
+                                <input type="text" class="form-control" id="topico" required 
+                                       placeholder="Ex: equações, geometria, cálculo...">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">🎓 Seu nível de estudo</label>
+                                <select class="form-select" id="nivel" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="Ensino Fundamental">Ensino Fundamental</option>
+                                    <option value="Ensino Médio">Ensino Médio</option>
+                                    <option value="Universidade">Universidade</option>
+                                    <option value="Profissional">Profissional</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">💡 O que você já sabe sobre esse tópico?</label>
+                                <textarea class="form-control" id="conhecimento_previo" rows="3" 
+                                          placeholder="Conte um pouco do que você já conhece..." required></textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" id="start-chat">
+                            Começar Aula!
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
