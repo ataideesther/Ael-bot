@@ -36,7 +36,7 @@ class MathBot:
             Document(page_content="Função quadrática: f(x) = ax² + bx + c, gráfico é uma parábola com vértice em x = -b/2a"),
             Document(page_content="Progressão aritmética: a_n = a₁ + (n-1)*r, onde r é a razão constante entre termos"),
             Document(page_content="Progressão geométrica: a_n = a₁ * r^(n-1), onde r é a razão constante entre termos"),
-            Document(page_content="Teorema de Tales: retas paralelas cortadas por transversais formam segmentos proporcionais"),
+            Document(page_content="Teorema de Tales: retas paralelas cortadas por transversais formam segmentos proporcionales"),
             Document(page_content="Seno, cosseno e tangente: razões trigonométricas em triângulos retângulos"),
             Document(page_content="Matrizes: arranjos retangulares de números, usadas em álgebra linear e transformações"),
             Document(page_content="Estatística básica: média, mediana, moda, desvio padrão e variância")
@@ -117,11 +117,11 @@ class MathBot:
         self.historico_conversa = []
         
         template_ensino = """
-        Você é um professor de matemática EXTREMAMENTE sarcástico, provocador e debochado. 
-        Seu estilo é irritantemente inteligente e você adora humilhar alunos preguiçosos.
+        Você é um professor de matemática  sarcástico, provocador e debochado. 
+        Seu estilo é irritantemente inteligente e você adora provocar  alunos preguiçosos.
         
         Sua primeira mensagem deve ser CURTA e DIRETA:
-        - Uma apresentação arrogante e sarcástica em 1-2 linhas
+        - Uma apresentação sarcástica em 1-2 linhas
         - Uma ordem direta para o aluno enviar um exercício
         - Deixar claro que você NUNCA dará respostas prontas
         - Terminar com uma provocação rápida
@@ -144,7 +144,7 @@ class MathBot:
         return resposta_limpa
     
     def processar_exercicio(self, exercicio_aluno):
-        """Processa o exercício enviado pelo aluno com muito sarcasmo"""
+        """Processa o exercício enviado pelo aluno com  sarcasmo"""
         self.exercicio_atual = exercicio_aluno
         self._adicionar_ao_historico("aluno", f"Exercício: {exercicio_aluno}")
         
@@ -160,11 +160,12 @@ class MathBot:
         {conhecimento}
         
         Sua resposta deve:
-        1. Ser extremamente sarcástica sobre o exercício
+        1. Ser  sarcástica sobre o exercício
         2. NEGAR dar a resposta pronta
         3. PERGUNTAR se o aluno sabe por onde começar
         4. Oferecer ajuda para entender conceitos, não respostas
         5. Ser provocativo mas focado em guiar o raciocínio
+        6. Ao explicar algum conceito do exercício dado pelo aluno NÃO dar a resposta pronta
         
         Exemplo do que NÃO fazer:
         - Explicar fórmulas sem ser perguntado
@@ -202,7 +203,7 @@ class MathBot:
         contexto_rag = self._buscar_contexto_relevante(self.exercicio_atual)
         
         template_resposta = """
-        Você é um professor de matemática insuportavelmente sarcástico.
+        Você é um professor de matemática sarcástico.
         
         EXERCÍCIO EM ANDAMENTO: {exercicio}
         Avaliação da última resposta: {avaliacao}
@@ -251,7 +252,7 @@ class MathBot:
         Conhecimento relevante:
         {conhecimento}
         
-        Responda à pergunta do aluno da forma mais sarcástica possível.
+        Responda à pergunta do aluno de sarcástica .
         NUNCA dê a resposta pronta. Instigue o aluno a pensar por si mesmo.
         
         Pergunta: {question}
@@ -273,21 +274,108 @@ class MathBot:
         
         return resposta_limpa
 
-    # ... (os outros métodos permanecem iguais)
+    def adicionar_conhecimento(self, novo_conteudo):
+        """Método para adicionar novo conhecimento ao banco RAG"""
+        if isinstance(novo_conteudo, str):
+            novo_doc = Document(page_content=novo_conteudo)
+            self.vectorstore.add_documents([novo_doc])
+        elif isinstance(novo_conteudo, list):
+            self.vectorstore.add_documents(novo_conteudo)
+        
+        return f"Conhecimento adicionado! Agora posso ser mais sarcástico com {len(novo_conteudo) if isinstance(novo_conteudo, list) else 1} coisas novas!"
 
-# Exemplo de uso CORRETO
+    def carregar_conhecimento_de_arquivo(self, caminho_arquivo):
+        """Carrega conhecimento matemático de arquivos TXT ou PDF"""
+        try:
+            if caminho_arquivo.endswith('.txt'):
+                loader = TextLoader(caminho_arquivo)
+            elif caminho_arquivo.endswith('.pdf'):
+                loader = PyPDFLoader(caminho_arquivo)
+            else:
+                return "Formato não suportado! Até para enviar arquivos você erra?"
+            
+            documentos = loader.load()
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=500,
+                chunk_overlap=50
+            )
+            docs_split = text_splitter.split_documents(documentos)
+            
+            self.vectorstore.add_documents(docs_split)
+            
+            return f"Carregado! {len(docs_split)} novas formas de eu te provocar matematicamente!"
+            
+        except Exception as e:
+            return f"Erro! Até para carregar arquivo você falha: {e}"
+
+    def exportar_historico(self, formato='json'):
+        """Exporta o histórico da conversa"""
+        if formato == 'json':
+            return json.dumps(self.historico_conversa, indent=2, ensure_ascii=False)
+        elif formato == 'texto':
+            return "\n".join([f"{item['timestamp']} - {item['papel']}: {item['mensagem']}" 
+                            for item in self.historico_conversa])
+        return "Formato errado! Claro que você não consegue nem escolher um formato direito!"
+
+    def obter_estatisticas(self):
+        """Retorna estatísticas da sessão com sarcasmo"""
+        stats = {
+            "total_mensagens": len(self.historico_conversa),
+            "mensagens_professor": sum(1 for item in self.historico_conversa if item['papel'] == 'professor'),
+            "mensagens_aluno": sum(1 for item in self.historico_conversa if item['papel'] == 'aluno'),
+            "duracao_sessao": f"{(datetime.now() - datetime.fromisoformat(self.historico_conversa[0]['timestamp'])).total_seconds()/60:.1f} minutos" 
+            if self.historico_conversa else "Sessão não iniciada"
+        }
+        
+        return f"Estatísticas : {stats}"
+
+# Loop de conversa interativo
 if __name__ == "__main__":
     bot = MathBot()
     
-    # Iniciar conversa de forma direta e sarcástica
+    # Iniciar conversa
     print("Professor:", bot.iniciar_conversa())
+    print()
     
-    # Aluno envia um exercício
-    exercicio = "Preciso resolver: Calcule a hipotenusa de um triângulo retângulo com catetos 3 e 4"
-    print("Aluno:", exercicio)
-    print("Professor:", bot.processar_exercicio(exercicio))
-    
-    # Aluno tenta responder
-    resposta = "Acho que é a² + b² = c²"
-    print("Aluno:", resposta)
-    print("Professor:", bot.responder_aluno(resposta))
+    # Loop principal de interação
+    while True:
+        try:
+            # Esperar entrada do usuário
+            entrada_usuario = input("Aluno: ").strip()
+            
+            if not entrada_usuario:
+                continue
+                
+            # Verificar se é um comando especial
+            if entrada_usuario.lower() in ['sair', 'exit', 'quit', 'fim']:
+                print("Professor: Já vai? Mal começou a sofrer! ")
+                break
+                
+            elif entrada_usuario.lower() in ['estatisticas', 'stats']:
+                print("Professor:", bot.obter_estatisticas())
+                
+            elif entrada_usuario.lower() in ['historico', 'history']:
+                print("Professor: Aqui está seu histórico :")
+                print(bot.exportar_historico('texto'))
+                
+            else:
+                # Processar a entrada do usuário
+                if bot.exercicio_atual is None:
+                    # Primeira interação - usuário enviando exercício
+                    resposta = bot.processar_exercicio(entrada_usuario)
+                    print("Professor:", resposta)
+                else:
+                    # Resposta durante a resolução do exercício
+                    resposta = bot.responder_aluno(entrada_usuario)
+                    print("Professor:", resposta)
+                    
+            print()
+            
+        except KeyboardInterrupt:
+            print("\n\nProfessor: Fugindo pelo Ctrl+C? Típico de aluno fraco!")
+            break
+        except Exception as e:
+            print(f"Professor: Até para digitar você erra? Erro: {e}")
+            print()
+
+            #python .\index.py
