@@ -1,47 +1,75 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Elementos DOM
-    const chatForm = document.getElementById('chat-form');
     const userInput = document.getElementById('user-input');
-    const chatMessages = document.getElementById('chat-messages');
     const submitBtn = document.getElementById('submit-btn');
-    const loadingSpinner = document.getElementById('loading-spinner');
-    const startButton = document.getElementById('start-chat');
-    const inicioModal = new bootstrap.Modal(document.getElementById('inicioModal'));
+    const chatInput = document.getElementById('chat-input');
+    const chatSubmitBtn = document.getElementById('chat-submit-btn');
+    const chatContainer = document.getElementById('chat-container');
+    const chatMessages = document.getElementById('chat-messages');
     let sessionId = null;
     let isConversationStarted = false;
     let typingIndicator = null;
 
-    // Mostrar modal de início
-    inicioModal.show();
+    // Focar no input quando a página carregar
+    userInput.focus();
 
-    // Iniciar conversa
-    startButton.addEventListener('click', function() {
-        const topico = document.getElementById('topico').value;
-        const nivel = document.getElementById('nivel').value;
-        const conhecimento = document.getElementById('conhecimento_previo').value;
+    // Função para obter o input ativo
+    function getActiveInput() {
+        return chatContainer.style.display === 'flex' ? chatInput : userInput;
+    }
 
-        if (!topico || !nivel || !conhecimento) {
-            alert('Por favor, preencha todos os campos!');
+    // Função para obter o botão ativo
+    function getActiveButton() {
+        return chatContainer.style.display === 'flex' ? chatSubmitBtn : submitBtn;
+    }
+
+    // Função para mostrar o chat
+    function showChat() {
+        chatContainer.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        // Esconder o input inicial
+        document.querySelector('.container').style.display = 'none';
+        // Focar no input do chat
+        setTimeout(() => chatInput.focus(), 100);
+    }
+
+    // Função para esconder o chat
+    function hideChat() {
+        chatContainer.style.display = 'none';
+        document.body.style.overflow = 'auto';
+        // Mostrar o input inicial novamente
+        document.querySelector('.container').style.display = 'flex';
+        userInput.focus();
+    }
+
+    // Função para enviar mensagem
+    async function handleSubmit() {
+        const activeInput = getActiveInput();
+        const activeButton = getActiveButton();
+        const message = activeInput.value.trim();
+        console.log('handleSubmit chamado, mensagem:', message);
+        console.log('isConversationStarted:', isConversationStarted);
+        
+        if (!message) {
+            activeInput.focus();
             return;
         }
 
-        iniciarConversa(topico, nivel, conhecimento);
-        inicioModal.hide();
-    });
+        // Mostrar chat se ainda não estiver visível
+        if (chatContainer.style.display === 'none') {
+            showChat();
+        }
 
-    // Enviar mensagem
-    chatForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const message = userInput.value.trim();
-        if (!message) return;
-
-        // Adicionar mensagem do usuário ao chat
+        // Adicionar mensagem do usuário
         addMessage(message, 'user');
-        userInput.value = '';
+        activeInput.value = '';
 
-        // Mostrar loading no botão
-        showLoading();
+        // Mostrar indicador de digitação
+        showTypingIndicator();
+
+        // Desabilitar input e botão
+        activeInput.disabled = true;
+        activeButton.disabled = true;
 
         try {
             let response;
@@ -93,30 +121,15 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             console.error('Erro:', error);
         } finally {
-            hideLoading();
-            userInput.focus();
+            hideTypingIndicator();
+            const activeInput = getActiveInput();
+            const activeButton = getActiveButton();
+            activeInput.disabled = false;
+            activeButton.disabled = false;
+            console.log('Input reabilitado, isConversationStarted:', isConversationStarted);
+            activeInput.focus();
             scrollToBottom();
         }
-    });
-
-    // Mostrar loading
-    function showLoading() {
-        loadingSpinner.classList.remove('d-none');
-        submitBtn.disabled = true;
-        userInput.disabled = true;
-        
-        // Mostrar indicador de digitação
-        showTypingIndicator();
-    }
-
-    // Esconder loading
-    function hideLoading() {
-        loadingSpinner.classList.add('d-none');
-        submitBtn.disabled = false;
-        userInput.disabled = false;
-        
-        // Remover indicador de digitação
-        hideTypingIndicator();
     }
 
     // Mostrar indicador de digitação
@@ -126,19 +139,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         typingIndicator = document.createElement('div');
-        typingIndicator.className = 'message bot-message mb-3';
+        typingIndicator.className = 'message bot-message';
         typingIndicator.innerHTML = `
-            <div class="d-flex align-items-start">
-                <div class="avatar me-3">🤖</div>
-                <div class="message-content">
-                    <div class="alert alert-info typing-alert">
-                        <strong>Professor:</strong> 
-                        <div class="typing-dots">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
-                    </div>
+            <div class="avatar">🤖</div>
+            <div class="typing-indicator">
+                <strong>Professor:</strong> 
+                <div class="typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
                 </div>
             </div>
         `;
@@ -155,62 +164,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Função para iniciar conversa
-    async function iniciarConversa(topico, nivel, conhecimento) {
-        try {
-            showLoading();
-            
-            const response = await fetchWithTimeout('/iniciar/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
-                body: JSON.stringify({
-                    topico: topico,
-                    nivel: nivel,
-                    conhecimento_previo: conhecimento
-                })
-            }, 120000);
-
-            const data = await response.json();
-
-            if (data.success) {
-                sessionId = data.session_id;
-                isConversationStarted = true;
-                addMessage(data.resposta, 'bot');
-            } else {
-                addMessage('❌ Erro ao iniciar conversa: ' + data.error, 'bot');
-            }
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                addMessage('⏳ O servidor demorou para responder (timeout). Tente novamente, aguarde mais um pouco ou aumente o tempo limite.', 'bot');
-            } else {
-                addMessage('❌ Erro de conexão', 'bot');
-            }
-        } finally {
-            hideLoading();
-            scrollToBottom();
-        }
-    }
-
     // Adicionar mensagem ao chat
     function addMessage(text, type) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${type}-message`;
         
         const avatar = type === 'bot' ? '🤖' : '👤';
-        const bgClass = type === 'bot' ? 'alert-info' : 'alert-primary';
         
         messageDiv.innerHTML = `
-            <div class="d-flex align-items-start">
-                <div class="avatar me-3">${avatar}</div>
-                <div class="message-content">
-                    <div class="alert ${bgClass}">
-                        <strong>${type === 'bot' ? 'Professor' : 'Você'}:</strong> 
-                        ${formatMessage(text)}
-                    </div>
-                </div>
+            <div class="avatar">${avatar}</div>
+            <div class="message-content">
+                <strong>${type === 'bot' ? 'Professor' : 'Você'}:</strong> 
+                ${formatMessage(text)}
             </div>
         `;
         
@@ -244,9 +209,40 @@ document.addEventListener('DOMContentLoaded', function() {
         return cookieValue;
     }
 
-    // Focar no input quando modal fechar
-    document.getElementById('inicioModal').addEventListener('hidden.bs.modal', function() {
-        userInput.focus();
+    // Event listeners para o input inicial
+    submitBtn.addEventListener('click', handleSubmit);
+    
+    userInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            handleSubmit();
+        }
+    });
+
+    userInput.addEventListener('click', function() {
+        console.log('Input inicial clicado');
+        this.focus();
+    });
+
+    // Event listeners para o input do chat
+    chatSubmitBtn.addEventListener('click', handleSubmit);
+    
+    chatInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            handleSubmit();
+        }
+    });
+
+    chatInput.addEventListener('click', function() {
+        console.log('Input do chat clicado');
+        this.focus();
+    });
+
+    // Fechar chat com tecla ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && chatContainer.style.display === 'flex') {
+            hideChat();
+            userInput.focus();
+        }
     });
 });
 

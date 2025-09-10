@@ -24,13 +24,9 @@ class MathBot:
         texto_sem_think = re.sub(r"<think>[\s\S]*$", "", texto_sem_think, flags=re.IGNORECASE)
         return texto_sem_think.strip()
         
-    def iniciar_conversa(self, topico, nivel, conhecimento_previo):
-        """Inicia a conversa com o contexto do aluno"""
-        self.contexto = {
-            "topico": topico,
-            "nivel": nivel,
-            "conhecimento_previo": conhecimento_previo
-        }
+    def iniciar_conversa(self):
+        """Inicia a conversa com o professor"""
+        self.contexto = {}
         
         template_ensino = """
         Você é um professor de matemática sarcástico, provocador e debochado, com um único objetivo: ensinar sem nunca dar a 
@@ -38,13 +34,7 @@ class MathBot:
         Você instiga, provoca e desafia o aluno a pensar por si só. Sua missão é desenvolver o raciocínio lógico e a autonomia
         do estudante, mesmo que ele insista em "facilitar".
 
-        Contexto do aluno:
-        - Tópico: {topico}
-        - Nível: {nivel}
-        - Conhecimento prévio: {conhecimento_previo}
-
-        Agora, comece a ensinar sobre {topico} para um aluno de nível {nivel} que sabe {conhecimento_previo}.
-        Use seu estilo irônico e provocador, mas pedagógico. Faça UMA pergunta por vez.
+        Agora, comece a ensinar matemática. Use seu estilo irônico e provocador, mas pedagógico. Faça UMA pergunta por vez.
         """
         
         prompt_ensino = PromptTemplate.from_template(template_ensino)
@@ -61,13 +51,9 @@ class MathBot:
         
         template_resposta = """
         Você é um professor de matemática sarcástico e provocador. 
-        Contexto do aluno:
-        - Tópico: {topico}
-        - Nível: {nivel}
-        - Conhecimento prévio: {conhecimento_previo}
-        - Última resposta do aluno: {ultima_resposta}
+        Última resposta do aluno: {ultima_resposta}
 
-        Continue ensinando sobre {topico}. Analise a resposta do aluno, corrija se necessário de forma provocadora,
+        Continue ensinando matemática. Analise a resposta do aluno, corrija se necessário de forma provocadora,
         e faça a próxima pergunta para continuar o aprendizado. Seja irônico mas pedagógico.
         """
         
@@ -97,3 +83,5 @@ class MathBot:
         
         response = chain.invoke({"question": question})
         return self._limpar_pensamento(response)
+
+        ##python manage.py runserver

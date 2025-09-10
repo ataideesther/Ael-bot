@@ -22,17 +22,17 @@ def iniciar_conversa(request):
         nivel = data.get('nivel', '').strip()
         conhecimento_previo = data.get('conhecimento_previo', '').strip()
         
-        if not topico or not nivel or not conhecimento_previo:
+        if not topico:
             return JsonResponse({
                 'success': False,
-                'error': 'Todos os campos são obrigatórios'
+                'error': 'Mensagem não pode estar vazia'
             })
         
         # Criar session ID único com timestamp
-        session_id = f"session_{hash(f'{topico}{nivel}{conhecimento_previo}{time.time()}')}"
+        session_id = f"session_{hash(f'{topico}{time.time()}')}"
         
         bot = MathBot()
-        resposta_inicial = bot.iniciar_conversa(topico, nivel, conhecimento_previo)
+        resposta_inicial = bot.iniciar_conversa()
         
         # Salvar sessão
         sessoes_ativas[session_id] = {
