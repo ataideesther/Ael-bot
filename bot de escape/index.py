@@ -90,15 +90,13 @@ class MathBot:
         """
         
         prompt = PromptTemplate.from_template(prompt_avaliacao)
-        chain = prompt | self.llm
-        
-        avaliacao = chain.invoke({
+        avaliacao = self._gerar_resposta_streaming(prompt, {
             "contexto": contexto_avaliacao,
             "pergunta": pergunta_original,
             "resposta": resposta_aluno
         })
         
-        return self._limpar_pensamento(avaliacao)
+        return avaliacao
     
     def _adicionar_ao_historico(self, papel: str, mensagem: str):
         """Adiciona mensagem ao histórico da conversa"""
@@ -111,44 +109,61 @@ class MathBot:
         if len(self.historico_conversa) > 20:
             self.historico_conversa = self.historico_conversa[-20:]
 
+    def _gerar_resposta_streaming(self, prompt, variaveis: dict):
+        """Gera resposta em streaming sem mostrar blocos <think>"""
+        resposta_final = ""
+        dentro_think = False
+
+        try:
+            for token in self.llm.stream(prompt.format(**variaveis)):
+                resposta_final += token
+
+                # Detecta início do bloco <think>
+                if "<think>" in token.lower():
+                    dentro_think = True
+                    continue
+                # Detecta fim do bloco </think>
+                if "</think>" in token.lower():
+                    dentro_think = False
+                    continue
+
+                # Só mostra se não estiver dentro do bloco <think>
+                if not dentro_think:
+                    print(token, end="", flush=True)
+
+            print()  # quebra de linha no fim
+        except Exception as e:
+            print(f"\n[ERRO STREAMING]: {e}")
+
+        return self._limpar_pensamento(resposta_final)
+
     def iniciar_conversa(self):
         """Inicia a conversa com o professor sarcástico de forma direta"""
         self.contexto = {}
         self.historico_conversa = []
         
         template_ensino = """
-        Você é um professor de matemática  sarcástico, provocador e debochado. 
-        Seu estilo é irritantemente inteligente e você adora provocar  alunos preguiçosos.
+        Você é um professor de matemática sarcástico, provocador e debochado. 
+        Seu estilo é irritantemente inteligente e você adora provocar alunos preguiçosos.
         
         Sua primeira mensagem deve ser CURTA e DIRETA:
         - Uma apresentação sarcástica em 1-2 linhas
         - Uma ordem direta para o aluno enviar um exercício
         - Deixar claro que você NUNCA dará respostas prontas
         - Terminar com uma provocação rápida
-        
-        NÃO explique conceitos matemáticos!
-        NÃO dê exemplos!
-        NÃO fale sobre fórmulas específicas!
-        
-        Apenas se apresente e peça o exercício de forma sarcástica.
         """
         
         prompt_ensino = PromptTemplate.from_template(template_ensino)
-        chain = prompt_ensino | self.llm
+        resposta_prof = self._gerar_resposta_streaming(prompt_ensino, {})
         
-        resposta_prof = chain.invoke({})
-        
-        resposta_limpa = self._limpar_pensamento(resposta_prof)
-        self._adicionar_ao_historico("professor", resposta_limpa)
-        
-        return resposta_limpa
+        self._adicionar_ao_historico("professor", resposta_prof)
+        return resposta_prof
     
     def processar_exercicio(self, exercicio_aluno):
-        """Processa o exercício enviado pelo aluno com  sarcasmo"""
+        """Processa o exercício enviado pelo aluno com sarcasmo"""
         self.exercicio_atual = exercicio_aluno
         self._adicionar_ao_historico("aluno", f"Exercício: {exercicio_aluno}")
         
-        # Buscar contexto relevante para o exercício
         contexto_rag = self._buscar_contexto_relevante(exercicio_aluno)
         
         template_exercicio = """
@@ -160,46 +175,28 @@ class MathBot:
         {conhecimento}
         
         Sua resposta deve:
-        1. Ser  sarcástica sobre o exercício
+        1. Ser sarcástica sobre o exercício
         2. NEGAR dar a resposta pronta
         3. PERGUNTAR se o aluno sabe por onde começar
         4. Oferecer ajuda para entender conceitos, não respostas
         5. Ser provocativo mas focado em guiar o raciocínio
-        6. Ao explicar algum conceito do exercício dado pelo aluno NÃO dar a resposta pronta
-        
-        Exemplo do que NÃO fazer:
-        - Explicar fórmulas sem ser perguntado
-        - Dar a resposta ou passo a passo
-        - Fazer todo o raciocínio pelo aluno
-        
-        Exemplo do que fazer:
-        - "Ah, Pitágoras? Você ao menos sabe o que é um triângulo retângulo?"
-        - "Vou te ajudar a pensar, não a copiar. Por onde você acha que começa?"
-        - "Que tal tentar lembrar qual teorema se aplica aqui?"
         """
         
         prompt_exercicio = PromptTemplate.from_template(template_exercicio)
-        chain = prompt_exercicio | self.llm
-        
-        resposta_prof = chain.invoke({
+        resposta_prof = self._gerar_resposta_streaming(prompt_exercicio, {
             "exercicio": exercicio_aluno,
             "conhecimento": contexto_rag
         })
         
-        resposta_limpa = self._limpar_pensamento(resposta_prof)
-        self._adicionar_ao_historico("professor", resposta_limpa)
-        
-        return resposta_limpa
+        self._adicionar_ao_historico("professor", resposta_prof)
+        return resposta_prof
     
     def responder_aluno(self, resposta_aluno):
         """Processa a resposta do aluno com sarcasmo máximo"""
         self.contexto["ultima_resposta"] = resposta_aluno
         self._adicionar_ao_historico("aluno", resposta_aluno)
         
-        # Avaliar a resposta do aluno com sarcasmo
         avaliacao = self._avaliar_resposta(resposta_aluno, self.exercicio_atual)
-        
-        # Buscar contexto relevante
         contexto_rag = self._buscar_contexto_relevante(self.exercicio_atual)
         
         template_resposta = """
@@ -219,25 +216,18 @@ class MathBot:
         3. Fazer perguntas que guiem para o próximo passo
         4. Oferecer dicas conceituais se necessário
         5. Manter o foco no raciocínio, não na resposta final
-        6. Ser provocativo mas pedagógico
-        
-        Lembre-se: você é sarcástico mas quer que o aluno aprenda a pensar.
         """
         
         prompt_resposta = PromptTemplate.from_template(template_resposta)
-        chain = prompt_resposta | self.llm
-        
-        resposta_prof = chain.invoke({
+        resposta_prof = self._gerar_resposta_streaming(prompt_resposta, {
             "exercicio": self.exercicio_atual,
             "ultima_resposta": resposta_aluno,
             "conhecimento": contexto_rag,
             "avaliacao": avaliacao
         })
         
-        resposta_limpa = self._limpar_pensamento(resposta_prof)
-        self._adicionar_ao_historico("professor", resposta_limpa)
-        
-        return resposta_limpa
+        self._adicionar_ao_historico("professor", resposta_prof)
+        return resposta_prof
     
     def ask_question(self, question, session_data=None):
         """Método para perguntas diretas com sarcasmo"""
@@ -252,27 +242,19 @@ class MathBot:
         Conhecimento relevante:
         {conhecimento}
         
-        Responda à pergunta do aluno de sarcástica .
-        NUNCA dê a resposta pronta. Instigue o aluno a pensar por si mesmo.
-        
-        Pergunta: {question}
-        
-        Resposta sarcástica:
+        Responda à pergunta do aluno de forma sarcástica.
         """
         
         prompt = PromptTemplate.from_template(template_simples)
-        chain = prompt | self.llm
-        
-        response = chain.invoke({
+        response = self._gerar_resposta_streaming(prompt, {
             "question": question,
             "conhecimento": contexto_rag
         })
         
-        resposta_limpa = self._limpar_pensamento(response)
         self._adicionar_ao_historico("aluno", question)
-        self._adicionar_ao_historico("professor", resposta_limpa)
+        self._adicionar_ao_historico("professor", response)
         
-        return resposta_limpa
+        return response
 
     def adicionar_conhecimento(self, novo_conteudo):
         """Método para adicionar novo conhecimento ao banco RAG"""
@@ -292,7 +274,7 @@ class MathBot:
             elif caminho_arquivo.endswith('.pdf'):
                 loader = PyPDFLoader(caminho_arquivo)
             else:
-                return "Formato não suportado! Até para enviar arquivos você erra?"
+                return "Formato não suportado!"
             
             documentos = loader.load()
             text_splitter = RecursiveCharacterTextSplitter(
@@ -306,7 +288,7 @@ class MathBot:
             return f"Carregado! {len(docs_split)} novas formas de eu te provocar matematicamente!"
             
         except Exception as e:
-            return f"Erro! Até para carregar arquivo você falha: {e}"
+            return f"Erro ao carregar arquivo: {e}"
 
     def exportar_historico(self, formato='json'):
         """Exporta o histórico da conversa"""
@@ -315,10 +297,10 @@ class MathBot:
         elif formato == 'texto':
             return "\n".join([f"{item['timestamp']} - {item['papel']}: {item['mensagem']}" 
                             for item in self.historico_conversa])
-        return "Formato errado! Claro que você não consegue nem escolher um formato direito!"
+        return "Formato errado!"
 
     def obter_estatisticas(self):
-        """Retorna estatísticas da sessão com sarcasmo"""
+        """Retorna estatísticas da sessão"""
         stats = {
             "total_mensagens": len(self.historico_conversa),
             "mensagens_professor": sum(1 for item in self.historico_conversa if item['papel'] == 'professor'),
@@ -327,7 +309,7 @@ class MathBot:
             if self.historico_conversa else "Sessão não iniciada"
         }
         
-        return f"Estatísticas : {stats}"
+        return f"Estatísticas: {stats}"
 
 # Loop de conversa interativo
 if __name__ == "__main__":
@@ -337,16 +319,13 @@ if __name__ == "__main__":
     print("Professor:", bot.iniciar_conversa())
     print()
     
-    # Loop principal de interação
     while True:
         try:
-            # Esperar entrada do usuário
             entrada_usuario = input("Aluno: ").strip()
             
             if not entrada_usuario:
                 continue
                 
-            # Verificar se é um comando especial
             if entrada_usuario.lower() in ['sair', 'exit', 'quit', 'fim']:
                 print("Professor: Já vai? Mal começou a sofrer! ")
                 break
@@ -359,15 +338,12 @@ if __name__ == "__main__":
                 print(bot.exportar_historico('texto'))
                 
             else:
-                # Processar a entrada do usuário
                 if bot.exercicio_atual is None:
-                    # Primeira interação - usuário enviando exercício
-                    resposta = bot.processar_exercicio(entrada_usuario)
-                    print("Professor:", resposta)
+                    print("Professor:", end=" ", flush=True)
+                    bot.processar_exercicio(entrada_usuario)
                 else:
-                    # Resposta durante a resolução do exercício
-                    resposta = bot.responder_aluno(entrada_usuario)
-                    print("Professor:", resposta)
+                    print("Professor:", end=" ", flush=True)
+                    bot.responder_aluno(entrada_usuario)
                     
             print()
             
@@ -375,7 +351,8 @@ if __name__ == "__main__":
             print("\n\nProfessor: Fugindo pelo Ctrl+C? Típico de aluno fraco!")
             break
         except Exception as e:
-            print(f"Professor: Até para digitar você erra? Erro: {e}")
+            print(f"Professor: Erro: {e}")
             print()
 
-            #python .\index.py
+            #python .\index.py 
+
