@@ -1,6 +1,7 @@
 import re
 import os
 import json
+import time
 from datetime import datetime
 from langchain_ollama import OllamaLLM
 from langchain.prompts import PromptTemplate
@@ -39,7 +40,19 @@ class MathBot:
             Document(page_content="Teorema de Tales: retas paralelas cortadas por transversais formam segmentos proporcionales"),
             Document(page_content="Seno, cosseno e tangente: razões trigonométricas em triângulos retângulos"),
             Document(page_content="Matrizes: arranjos retangulares de números, usadas em álgebra linear e transformações"),
-            Document(page_content="Estatística básica: média, mediana, moda, desvio padrão e variância")
+            Document(page_content="Estatística básica: média, mediana, moda, desvio padrão e variância"),
+            Document(page_content="Probabilidade: medida da chance de um evento ocorrer, entre 0 e 1"),
+            Document(page_content="Equação de uma reta: y = mx + b, onde m é a inclinação e b é o intercepto"),
+            Document(page_content="Equação de uma circunferência: (x - h)² + (y - k)² = r², onde (h, k) é o centro e r é o raio"),
+            Document(page_content="Equação de uma parábola: y = ax² + bx + c, onde a, b e c são constantes"),
+            Document(page_content="Equação de uma elipse: (x - h)²/a² + (y - k)²/b² = 1, onde (h, k) é o centro e a e b são os semi-eixos"),
+            Document(page_content="Equação de uma hipérbole: (x - h)²/a² - (y - k)²/b² = 1, onde (h, k) é o centro e a e b são os semi-eixos"),
+            Document(page_content="Equação de uma elipse: (x - h)²/a² + (y - k)²/b² = 1, onde (h, k) é o centro e a e b são os semi-eixos"),  
+            Document(page_content="regras de sinais adição e substração : + com + = +, + com - = -, - com + = -, - com - = +"),
+            Document(page_content="regras de sinais multiplicação e divisão: + * + = +, + * - = -, - * + = -, - * - = +"),
+
+
+
         ]
         
         text_splitter = RecursiveCharacterTextSplitter(
@@ -86,7 +99,15 @@ class MathBot:
         Pergunta original: {pergunta}
         Resposta do aluno: {resposta}
         
-        Responda de forma sarcástica e debochada, indicando se está CORRETO ou INCORRETO.
+        REGRAS (OBRIGATÓRIO):
+        - NÃO revele a resposta correta nem resultados numéricos finais.
+        - NÃO forneça o passo a passo completo.
+        - Se precisar citar resultados, use placeholders como [valor], [passo], [resultado].
+        
+        Saída curta:
+        - Julgamento: CORRETO/INCORRETO + provocação (1 linha)
+        - 1 dica conceitual (sem contas)
+        - 1 pergunta para o próximo passo
         """
         
         prompt = PromptTemplate.from_template(prompt_avaliacao)
@@ -110,28 +131,59 @@ class MathBot:
             self.historico_conversa = self.historico_conversa[-20:]
 
     def _gerar_resposta_streaming(self, prompt, variaveis: dict):
-        """Gera resposta em streaming sem mostrar blocos <think>"""
+        """Gera resposta em streaming palavra por palavra, ocultando blocos <think>"""
         resposta_final = ""
         dentro_think = False
+        buffer_palavra = ""
 
         try:
-            for token in self.llm.stream(prompt.format(**variaveis)):
-                resposta_final += token
-
+            # Primeiro, obtemos a resposta completa para processar
+            resposta_completa = self.llm.invoke(prompt.format(**variaveis))
+            resposta_final = resposta_completa
+            
+            # Processa caractere por caractere para streaming
+            for char in resposta_completa:
+                resposta_final += char
+                
                 # Detecta início do bloco <think>
-                if "<think>" in token.lower():
+                if "<think>" in buffer_palavra.lower():
                     dentro_think = True
+                    buffer_palavra = ""
                     continue
+                
                 # Detecta fim do bloco </think>
-                if "</think>" in token.lower():
+                if "</think>" in buffer_palavra.lower():
                     dentro_think = False
+                    buffer_palavra = ""
                     continue
+                
+                # Acumula caracteres para formar palavras
+                buffer_palavra += char
+                
+                # Se encontrou um espaço ou pontuação, exibe a palavra completa
+                if char in ' .,!?;:\n\t' and buffer_palavra.strip():
+                    palavra_completa = buffer_palavra.strip()
+                    
+                    # Só mostra se não estiver dentro do bloco <think>
+                    if not dentro_think and palavra_completa:
+                        print(palavra_completa, end=" ", flush=True)
+                        # Pequena pausa para efeito de digitação
+                        time.sleep(0.05)
+                    
+                    buffer_palavra = ""
+                
+                # Se o buffer ficar muito grande (para evitar problemas com tags longas)
+                if len(buffer_palavra) > 50:
+                    if not dentro_think:
+                        print(buffer_palavra, end="", flush=True)
+                    buffer_palavra = ""
 
-                # Só mostra se não estiver dentro do bloco <think>
-                if not dentro_think:
-                    print(token, end="", flush=True)
+            # Exibe qualquer palavra restante no buffer
+            if buffer_palavra and not dentro_think:
+                print(buffer_palavra, end="", flush=True)
 
             print()  # quebra de linha no fim
+            
         except Exception as e:
             print(f"\n[ERRO STREAMING]: {e}")
 
@@ -149,7 +201,7 @@ class MathBot:
         Sua primeira mensagem deve ser CURTA e DIRETA:
         - Uma apresentação sarcástica em 1-2 linhas
         - Uma ordem direta para o aluno enviar um exercício
-        - Deixar claro que você NUNCA dará respostas prontas
+        - Deixar claro que você NUNCA dará respostas prontas (nem valores numéricos)
         - Terminar com uma provocação rápida
         """
         
@@ -176,10 +228,20 @@ class MathBot:
         
         Sua resposta deve:
         1. Ser sarcástica sobre o exercício
-        2. NEGAR dar a resposta pronta
-        3. PERGUNTAR se o aluno sabe por onde começar
-        4. Oferecer ajuda para entender conceitos, não respostas
-        5. Ser provocativo mas focado em guiar o raciocínio
+        2. PERGUNTAR se o aluno sabe por onde começar
+        3. Oferecer ajuda para entender conceitos, não respostas
+        4. Ser provocativo mas focado em guiar o raciocínio
+        REGRAS RÍGIDAS (NÃO QUEBRE):
+        - NÃO dê a resposta pronta.
+        - NÃO escreva valores numéricos finais nem igualdades resolvidas (ex.: x = [número]).
+        - NÃO faça o passo a passo completo; entregue apenas a próxima pista.
+        - Se precisar mencionar resultados, use placeholders como [valor], [número], [resultado].
+        - Foque em perguntas orientadoras e dicas conceituais curtas.
+        
+        Formato (obrigatório):
+        1) 2-3 perguntas guiadas sobre o primeiro/próximo passo
+        2) 1 dica conceitual (sem contas)
+        3) 1 provocação curta
         """
         
         prompt_exercicio = PromptTemplate.from_template(template_exercicio)
@@ -209,12 +271,17 @@ class MathBot:
         {conhecimento}
         
         Última resposta do aluno: {ultima_resposta}
-
+        
+        REGRAS RÍGIDAS (NÃO QUEBRE):
+        - NÃO revele resultados numéricos finais nem expressões resolvidas (ex.: x = [número]).
+        - NÃO faça o passo a passo completo; apenas a próxima pista.
+        - Se for inevitável mencionar um resultado, substitua por [valor], [passo], [resultado].
+        
         Sua resposta deve:
-        1. Analisar a resposta do aluno de forma sarcástica mas construtiva
+        1. Analisar a resposta do aluno de forma sarcástica mas construtiva (sem revelar resultados)
         2. Se estiver errado, explicar o erro sem dar a resposta
-        3. Fazer perguntas que guiem para o próximo passo
-        4. Oferecer dicas conceituais se necessário
+        3. Fazer 2-3 perguntas que guiem para o próximo passo
+        4. Dar 1 dica conceitual curta (sem contas)
         5. Manter o foco no raciocínio, não na resposta final
         """
         
@@ -242,7 +309,16 @@ class MathBot:
         Conhecimento relevante:
         {conhecimento}
         
-        Responda à pergunta do aluno de forma sarcástica.
+        REGRAS (OBRIGATÓRIO):
+        - NUNCA dê a resposta pronta.
+        - NUNCA escreva números finais ou igualdades resolvidas.
+        - Use perguntas guiadas e dicas conceituais curtas.
+        - Quando necessário, use placeholders como [número], [resultado], [passo].
+        
+        Produza:
+        - 2 perguntas guiadas
+        - 1 dica conceitual
+        - 1 provocação curta
         """
         
         prompt = PromptTemplate.from_template(template_simples)
@@ -316,7 +392,8 @@ if __name__ == "__main__":
     bot = MathBot()
     
     # Iniciar conversa
-    print("Professor:", bot.iniciar_conversa())
+    print("Professor:", end=" ", flush=True)
+    bot.iniciar_conversa()
     print()
     
     while True:
@@ -354,5 +431,4 @@ if __name__ == "__main__":
             print(f"Professor: Erro: {e}")
             print()
 
-            #python .\index.py 
-
+            #python .\index.py
